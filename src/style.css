@@ -79,6 +79,23 @@ body {
   }
 }
 
+@media (max-width: 560px) {
+  #hud {
+    left: 18px;
+    right: 18px;
+    bottom: 16px;
+  }
+
+  #hud h1 {
+    font-size: 22px;
+  }
+
+  #hud p {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #loading span {
     animation-duration: 2.4s;

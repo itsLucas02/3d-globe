@@ -10,8 +10,23 @@ import { CITIES, HUBS, ROUTE_ARCS } from './globeData'
 import { createDayNightMaterial, geoToVector3, subsolarPoint } from './globeMaterial'
 
 const GLOBE_RADIUS = 100
-const MAX_PIXEL_RATIO = Math.min(window.devicePixelRatio, 2)
 const SUN_TIME_SCALE = 240
+
+const lowPower =
+  window.matchMedia('(pointer: coarse)').matches ||
+  Math.min(window.innerWidth, window.innerHeight) < 640
+
+const PROFILE = {
+  maxPixelRatio: Math.min(window.devicePixelRatio, lowPower ? 1.5 : 2),
+  bloom: !lowPower,
+  stars: lowPower ? 2500 : 6000,
+  pointResolution: lowPower ? 8 : 12,
+  arcCurveResolution: lowPower ? 36 : 72,
+  arcCircularResolution: lowPower ? 5 : 8,
+  ringResolution: lowPower ? 32 : 64,
+}
+
+const MAX_PIXEL_RATIO = PROFILE.maxPixelRatio
 
 const host = document.querySelector<HTMLDivElement>('#app')!
 const loading = document.querySelector<HTMLDivElement>('#loading')
@@ -41,14 +56,14 @@ const globe = new ThreeGlobe({ waitForGlobeReady: false, animateIn: true })
   .pointColor((city: object) => ((city as { hub?: boolean }).hub ? '#d6f2ff' : '#7fe3ff'))
   .pointAltitude((city: object) => ((city as { hub?: boolean }).hub ? 0.025 : 0.012))
   .pointRadius((city: object) => ((city as { hub?: boolean }).hub ? 0.3 : 0.2))
-  .pointResolution(12)
+  .pointResolution(PROFILE.pointResolution)
   .pointsMerge(true)
   .arcsData(ROUTE_ARCS)
   .arcColor(() => ['#22d3ee', '#818cf8'])
   .arcAltitudeAutoScale(0.42)
   .arcStroke(0.65)
-  .arcCurveResolution(72)
-  .arcCircularResolution(8)
+  .arcCurveResolution(PROFILE.arcCurveResolution)
+  .arcCircularResolution(PROFILE.arcCircularResolution)
   .arcDashLength(0.4)
   .arcDashGap(0.6)
   .arcDashAnimateTime(3200)
@@ -59,7 +74,7 @@ const globe = new ThreeGlobe({ waitForGlobeReady: false, animateIn: true })
   .ringMaxRadius(4)
   .ringPropagationSpeed(3)
   .ringRepeatPeriod(1000)
-  .ringResolution(64)
+  .ringResolution(PROFILE.ringResolution)
 
 globe.rotation.z = THREE.MathUtils.degToRad(-23.4)
 scene.add(globe)
@@ -146,7 +161,7 @@ function createStarfield(count: number, innerRadius: number, outerRadius: number
   return new THREE.Points(geometry, material)
 }
 
-scene.add(createStarfield(6000, 1200, 2800))
+scene.add(createStarfield(PROFILE.stars, 1200, 2800))
 
 const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
@@ -174,6 +189,8 @@ const bloom = new UnrealBloomPass(
 composer.addPass(bloom)
 composer.addPass(new OutputPass())
 
+bloom.enabled = PROFILE.bloom
+
 function toggleGraticules(): void {
   globe.showGraticules(!globe.showGraticules())
 }
@@ -200,10 +217,12 @@ renderer.setAnimationLoop((time: number) => {
   composer.render()
 })
 
-if (import.meta.env.DEV) {
+const debugEnabled =
+  import.meta.env.DEV || new URLSearchParams(window.location.search).has('debug')
+
+if (debugEnabled) {
   Object.assign(window, {
     __globe: {
-      THREE,
       scene,
       camera,
       controls,
