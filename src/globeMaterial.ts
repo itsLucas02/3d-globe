@@ -74,10 +74,6 @@ const fragmentShader = /* glsl */ `
     float twilight = exp(-pow(sunAmount / 0.16, 2.0));
     color += vec3(0.6, 0.26, 0.1) * twilight * 0.08;
 
-    vec3 halfDir = normalize(sunDir + viewDir);
-    float specular = pow(max(dot(normal, halfDir), 0.0), 200.0);
-    color += vec3(0.85, 0.92, 1.0) * specular * dayness * 0.06;
-
     float rim = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
     color += vec3(0.16, 0.4, 0.85) * rim * 0.6;
 

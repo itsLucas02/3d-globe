@@ -15,6 +15,7 @@ dist-ssr
 # Local tooling / captures
 .playwright-mcp/
 globe-*.png
+cmp-*.png
 
 # Editor directories and files
 .vscode/*

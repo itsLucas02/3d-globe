@@ -86,8 +86,8 @@ const maxAnisotropy = renderer.capabilities.getMaxAnisotropy()
 const textureLoader = new THREE.TextureLoader()
 
 Promise.all([
-  textureLoader.loadAsync('/img/earth-blue-marble.jpg'),
-  textureLoader.loadAsync('/img/earth-night.jpg'),
+  textureLoader.loadAsync('/img/earth-blue-marble.webp'),
+  textureLoader.loadAsync('/img/earth-night.webp'),
 ])
   .then(([dayTexture, nightTexture]) => {
     dayTexture.anisotropy = maxAnisotropy
