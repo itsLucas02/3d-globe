@@ -6,6 +6,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { CITIES, HUBS, ROUTE_ARCS } from './globeData'
 
 const GLOBE_RADIUS = 100
 const MAX_PIXEL_RATIO = Math.min(window.devicePixelRatio, 2)
@@ -33,6 +34,31 @@ const globe = new ThreeGlobe({ waitForGlobeReady: true, animateIn: true })
   .showAtmosphere(true)
   .atmosphereColor('#8ecbff')
   .atmosphereAltitude(0.16)
+  .pointsData(CITIES)
+  .pointLat('lat')
+  .pointLng('lng')
+  .pointColor((city: object) => ((city as { hub?: boolean }).hub ? '#d6f2ff' : '#7fe3ff'))
+  .pointAltitude((city: object) => ((city as { hub?: boolean }).hub ? 0.025 : 0.012))
+  .pointRadius((city: object) => ((city as { hub?: boolean }).hub ? 0.3 : 0.2))
+  .pointResolution(12)
+  .pointsMerge(true)
+  .arcsData(ROUTE_ARCS)
+  .arcColor(() => ['#22d3ee', '#818cf8'])
+  .arcAltitudeAutoScale(0.42)
+  .arcStroke(0.65)
+  .arcCurveResolution(72)
+  .arcCircularResolution(8)
+  .arcDashLength(0.4)
+  .arcDashGap(0.6)
+  .arcDashAnimateTime(3200)
+  .ringsData(HUBS)
+  .ringLat('lat')
+  .ringLng('lng')
+  .ringColor(() => (t: number) => `rgba(127,227,255,${(1 - t) * 0.85})`)
+  .ringMaxRadius(4)
+  .ringPropagationSpeed(3)
+  .ringRepeatPeriod(1000)
+  .ringResolution(64)
 
 globe.rotation.z = THREE.MathUtils.degToRad(-23.4)
 scene.add(globe)
@@ -98,9 +124,9 @@ composer.addPass(new RenderPass(scene, camera))
 
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.5,
-  0.35,
-  0.68,
+  0.55,
+  0.4,
+  0.82,
 )
 composer.addPass(bloom)
 composer.addPass(new OutputPass())
