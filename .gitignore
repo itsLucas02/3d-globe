@@ -16,6 +16,7 @@ dist-ssr
 .playwright-mcp/
 globe-*.png
 cmp-*.png
+ix-*.png
 
 # Editor directories and files
 .vscode/*
