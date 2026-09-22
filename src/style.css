@@ -52,7 +52,7 @@ body {
 #loading {
   position: fixed;
   inset: 0;
-  z-index: 3;
+  z-index: 10;
   display: grid;
   place-items: center;
   background: #05070d;
@@ -79,6 +79,257 @@ body {
   }
 }
 
+/* ---------- City labels (CSS2D) ---------- */
+
+#labels {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.label-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.city-label {
+  margin-left: 9px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: rgba(206, 228, 255, 0.7);
+  text-shadow: 0 1px 6px rgba(2, 8, 20, 0.95), 0 0 12px rgba(2, 8, 20, 0.75);
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  user-select: none;
+}
+
+.city-label--hub {
+  color: #e2f2ff;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+}
+
+/* ---------- Hover tooltip ---------- */
+
+#tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  min-width: 148px;
+  max-width: 260px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(126, 186, 255, 0.22);
+  background: rgba(9, 16, 30, 0.84);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  color: #e8f2ff;
+  font-size: 13px;
+  line-height: 1.35;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  will-change: transform;
+}
+
+#tooltip.hidden {
+  opacity: 0;
+}
+
+.tooltip-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#tooltip strong {
+  font-weight: 600;
+}
+
+#tooltip span {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(168, 198, 232, 0.62);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltip-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(127, 227, 255, 0.4);
+  background: rgba(127, 227, 255, 0.12);
+  color: #9fe8ff;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---------- Control panel ---------- */
+
+.panel {
+  position: fixed;
+  top: 22px;
+  right: 22px;
+  z-index: 4;
+  width: 210px;
+  border-radius: 14px;
+  border: 1px solid rgba(126, 186, 255, 0.18);
+  background: rgba(9, 16, 30, 0.74);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  font-size: 12px;
+  color: #dbe9fb;
+  user-select: none;
+}
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.panel-toggle-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6fb7ff;
+  box-shadow: 0 0 10px rgba(111, 183, 255, 0.9);
+}
+
+.panel-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 13px 14px;
+}
+
+.panel.is-collapsed .panel-body {
+  display: none;
+}
+
+.panel-group {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.panel-group legend {
+  padding: 0 0 2px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(150, 182, 220, 0.6);
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.panel-row input[type='checkbox'] {
+  appearance: none;
+  display: grid;
+  place-content: center;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border-radius: 4px;
+  border: 1px solid rgba(126, 186, 255, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.panel-row input[type='checkbox']::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: #7fe3ff;
+  box-shadow: 0 0 8px rgba(127, 227, 255, 0.8);
+  transform: scale(0);
+  transition: transform 0.12s ease;
+}
+
+.panel-row input[type='checkbox']:checked::before {
+  transform: scale(1);
+}
+
+.panel-range {
+  display: grid;
+  gap: 6px;
+}
+
+.panel-range-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.panel-range output {
+  color: #9fe8ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-range input[type='range'] {
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(127, 227, 255, 0.7), rgba(129, 140, 248, 0.7));
+  cursor: pointer;
+}
+
+.panel-range input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: #eaf6ff;
+  box-shadow: 0 0 8px rgba(127, 227, 255, 0.8);
+}
+
+.panel-range input[type='range']::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: #eaf6ff;
+}
+
+.panel-toggle:focus-visible,
+.panel-row input:focus-visible,
+.panel-range input:focus-visible {
+  outline: 2px solid rgba(127, 227, 255, 0.75);
+  outline-offset: 2px;
+}
+
 @media (max-width: 560px) {
   #hud {
     left: 18px;
@@ -93,6 +344,16 @@ body {
   #hud p {
     font-size: 10px;
     letter-spacing: 0.1em;
+  }
+
+  .panel {
+    top: 14px;
+    right: 14px;
+    width: 186px;
+  }
+
+  .city-label {
+    font-size: 10px;
   }
 }
 
