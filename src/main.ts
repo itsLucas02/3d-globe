@@ -95,10 +95,11 @@ let simulatedTime = Date.now()
 
 const maxAnisotropy = renderer.capabilities.getMaxAnisotropy()
 const textureLoader = new THREE.TextureLoader()
+const assetUrl = (path: string): string => `${import.meta.env.BASE_URL}${path}`
 
 Promise.all([
-  textureLoader.loadAsync('/img/earth-blue-marble.webp'),
-  textureLoader.loadAsync('/img/earth-night.webp'),
+  textureLoader.loadAsync(assetUrl('img/earth-blue-marble.webp')),
+  textureLoader.loadAsync(assetUrl('img/earth-night.webp')),
 ])
   .then(([dayTexture, nightTexture]) => {
     dayTexture.anisotropy = maxAnisotropy

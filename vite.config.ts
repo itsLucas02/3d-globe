@@ -28,6 +28,9 @@ const VENDOR_GROUPS: Array<[string, string[]]> = [
 ]
 
 export default defineConfig({
+  // GitHub Pages serves project sites from /<repo>/, so the deploy build sets
+  // BASE_PATH. Local dev and preview keep the root base.
+  base: process.env.BASE_PATH || '/',
   build: {
     rollupOptions: {
       output: {
