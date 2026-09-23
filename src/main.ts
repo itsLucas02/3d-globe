@@ -8,9 +8,13 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { CITIES, HUBS, ROUTE_ARCS } from './globeData'
 import { createDayNightMaterial, geoToVector3, subsolarPoint } from './globeMaterial'
+import { GLOBE_RADIUS } from './constants'
+import { createLabelLayer } from './labels'
+import { setupInteraction } from './interaction'
+import { createControlPanel } from './panel'
+import type { LayerId } from './panel'
 
-const GLOBE_RADIUS = 100
-const SUN_TIME_SCALE = 240
+let sunTimeScale = 240
 
 const lowPower =
   window.matchMedia('(pointer: coarse)').matches ||
@@ -29,6 +33,9 @@ const PROFILE = {
 const MAX_PIXEL_RATIO = PROFILE.maxPixelRatio
 
 const host = document.querySelector<HTMLDivElement>('#app')!
+const labelsHost = document.querySelector<HTMLDivElement>('#labels')!
+const panelHost = document.querySelector<HTMLDivElement>('#panel-root')!
+const tooltipEl = document.querySelector<HTMLDivElement>('#tooltip')!
 const loading = document.querySelector<HTMLDivElement>('#loading')
 const clockEl = document.querySelector<HTMLSpanElement>('#clock')
 
@@ -76,8 +83,12 @@ const globe = new ThreeGlobe({ waitForGlobeReady: false, animateIn: true })
   .ringRepeatPeriod(1000)
   .ringResolution(PROFILE.ringResolution)
 
-globe.rotation.z = THREE.MathUtils.degToRad(-23.4)
-scene.add(globe)
+// The globe's own transform is driven by three-globe's animateIn tween, so tilt a
+// wrapper instead of the globe itself.
+const globeRoot = new THREE.Group()
+globeRoot.rotation.z = THREE.MathUtils.degToRad(-23.4)
+globeRoot.add(globe)
+scene.add(globeRoot)
 
 let globeMaterial: THREE.ShaderMaterial | null = null
 let simulatedTime = Date.now()
@@ -112,13 +123,16 @@ const fillLight = new THREE.DirectionalLight(0x9fc4ff, 1.1)
 scene.add(fillLight)
 
 const sunDirection = new THREE.Vector3(1, 0, 0)
+const globeQuaternion = new THREE.Quaternion()
 
 function updateSun(deltaSeconds: number): void {
-  simulatedTime += deltaSeconds * 1000 * SUN_TIME_SCALE
+  simulatedTime += deltaSeconds * 1000 * sunTimeScale
   const date = new Date(simulatedTime)
   const { lat, lng } = subsolarPoint(date)
 
-  sunDirection.copy(geoToVector3(lat, lng)).applyQuaternion(globe.quaternion).normalize()
+  globe.updateWorldMatrix(true, false)
+  globe.getWorldQuaternion(globeQuaternion)
+  sunDirection.copy(geoToVector3(lat, lng)).applyQuaternion(globeQuaternion).normalize()
 
   const uniforms = globeMaterial?.uniforms
   if (uniforms) (uniforms.sunDirection.value as THREE.Vector3).copy(sunDirection)
@@ -191,12 +205,67 @@ composer.addPass(new OutputPass())
 
 bloom.enabled = PROFILE.bloom
 
-function toggleGraticules(): void {
-  globe.showGraticules(!globe.showGraticules())
+const labels = createLabelLayer(labelsHost, scene, camera, globe, CITIES)
+
+const interaction = setupInteraction(
+  { scene, camera, renderer, controls, globe, getGlobeMaterial: () => globeMaterial },
+  tooltipEl,
+)
+
+function setLayerVisible(layer: LayerId, visible: boolean): void {
+  switch (layer) {
+    case 'routes':
+      globe.arcsData(visible ? ROUTE_ARCS : [])
+      interaction.setLayerEnabled('arcs', visible)
+      break
+    case 'cities':
+      globe.pointsData(visible ? CITIES : [])
+      interaction.setLayerEnabled('cities', visible)
+      break
+    case 'rings':
+      globe.ringsData(visible ? HUBS : [])
+      break
+    case 'graticules':
+      globe.showGraticules(visible)
+      break
+    case 'labels':
+      labels.setVisible(visible)
+      break
+  }
 }
 
+const panel = createControlPanel(
+  panelHost,
+  {
+    setLayer: setLayerVisible,
+    setAutoRotate: (enabled) => {
+      controls.autoRotate = enabled
+    },
+    setSunSpeed: (scale) => {
+      sunTimeScale = scale
+    },
+  },
+  {
+    sunSpeed: sunTimeScale,
+    autoRotate: controls.autoRotate,
+    layers: {
+      routes: true,
+      cities: true,
+      rings: true,
+      graticules: Boolean(globe.showGraticules()),
+      labels: true,
+    },
+  },
+)
+
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'g' || event.key === 'G') toggleGraticules()
+  if (event.key === 'g' || event.key === 'G') {
+    const next = !globe.showGraticules()
+    setLayerVisible('graticules', next)
+    panel.setLayerChecked('graticules', next)
+  }
+
+  if (event.key === 'h' || event.key === 'H') panel.toggle()
 })
 
 function onResize(): void {
@@ -204,6 +273,7 @@ function onResize(): void {
   camera.updateProjectionMatrix()
   renderer.setSize(window.innerWidth, window.innerHeight)
   composer.setSize(window.innerWidth, window.innerHeight)
+  labels.setSize(window.innerWidth, window.innerHeight)
 }
 window.addEventListener('resize', onResize)
 
@@ -213,8 +283,10 @@ renderer.setAnimationLoop((time: number) => {
   const delta = Math.min((time - lastFrameTime) / 1000, 0.1)
   lastFrameTime = time
   updateSun(delta)
+  interaction.update(delta)
   controls.update()
   composer.render()
+  labels.render()
 })
 
 const debugEnabled =
@@ -230,6 +302,9 @@ if (debugEnabled) {
       composer,
       renderer,
       bloom,
+      labels,
+      interaction,
+      panel,
       getGlobeMaterial: () => globeMaterial,
     },
   })

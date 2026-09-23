@@ -12,10 +12,10 @@ dist
 dist-ssr
 *.local
 
-# Local tooling / captures
+# Local tooling / captures (Playwright writes screenshots to the repo root,
+# so ignore root-level PNGs; bundled assets live in public/)
 .playwright-mcp/
-globe-*.png
-cmp-*.png
+/*.png
 
 # Editor directories and files
 .vscode/*
