@@ -102,6 +102,8 @@ const assetUrl = (path: string): string => `${import.meta.env.BASE_URL}${path}`
 
 const explosions = createExplosionSystem({
   globe,
+  camera,
+  getSunDirection: () => sunDirection,
   quality: lowPower ? 'low' : 'high',
 })
 
