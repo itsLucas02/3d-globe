@@ -1,9 +1,26 @@
-export type LayerId = 'routes' | 'cities' | 'rings' | 'missiles' | 'graticules' | 'labels'
+export type LayerId = 'routes' | 'cities' | 'rings' | 'missiles' | 'silos' | 'graticules' | 'labels'
+
+export type MissileVariant = 'icbm' | 'mirv'
+
+export interface StrikeRequest {
+  fromLat: number
+  fromLng: number
+  toLat: number
+  toLng: number
+  variant: MissileVariant
+}
+
+export interface SiteOption {
+  name: string
+  lat: number
+  lng: number
+}
 
 export interface PanelActions {
   setLayer: (layer: LayerId, visible: boolean) => void
   setAutoRotate: (enabled: boolean) => void
   setSunSpeed: (scale: number) => void
+  launch: (strike: StrikeRequest) => void
 }
 
 export interface PanelHandle {
@@ -15,6 +32,8 @@ export interface PanelOptions {
   sunSpeed: number
   autoRotate: boolean
   layers: Record<LayerId, boolean>
+  origins: SiteOption[]
+  targets: SiteOption[]
 }
 
 const LAYERS: Array<{ id: LayerId; label: string }> = [
@@ -22,9 +41,19 @@ const LAYERS: Array<{ id: LayerId; label: string }> = [
   { id: 'cities', label: 'City markers' },
   { id: 'rings', label: 'Ping rings' },
   { id: 'missiles', label: 'Ballistic missiles' },
+  { id: 'silos', label: 'Missile silos' },
   { id: 'graticules', label: 'Graticules' },
   { id: 'labels', label: 'City labels' },
 ]
+
+function optionsFor(sites: SiteOption[]): string {
+  return sites
+    .map(
+      (site) =>
+        `<option value="${site.name}" data-lat="${site.lat}" data-lng="${site.lng}">${site.name}</option>`,
+    )
+    .join('')
+}
 
 export function createControlPanel(
   host: HTMLElement,
@@ -47,6 +76,25 @@ export function createControlPanel(
       <span>Controls</span>
     </button>
     <div class="panel-body" id="panel-body">
+      <fieldset class="panel-group">
+        <legend>Strike</legend>
+        <label class="panel-select">
+          <span>From</span>
+          <select data-strike="from">${optionsFor(options.origins)}</select>
+        </label>
+        <label class="panel-select">
+          <span>Target</span>
+          <select data-strike="to">${optionsFor(options.targets)}</select>
+        </label>
+        <label class="panel-select">
+          <span>Warhead</span>
+          <select data-strike="variant">
+            <option value="icbm">Single RV</option>
+            <option value="mirv">MIRV &middot; 3 RVs</option>
+          </select>
+        </label>
+        <button class="panel-launch" type="button" data-strike-launch>Launch</button>
+      </fieldset>
       <fieldset class="panel-group">
         <legend>Layers</legend>
         ${layerRows}
@@ -74,6 +122,10 @@ export function createControlPanel(
   const rangeInput = panel.querySelector<HTMLInputElement>('[data-sun-speed]')!
   const rangeOutput = panel.querySelector<HTMLOutputElement>('[data-sun-output]')!
   const rotateInput = panel.querySelector<HTMLInputElement>('[data-motion="rotate"]')!
+  const fromSelect = panel.querySelector<HTMLSelectElement>('[data-strike="from"]')!
+  const toSelect = panel.querySelector<HTMLSelectElement>('[data-strike="to"]')!
+  const variantSelect = panel.querySelector<HTMLSelectElement>('[data-strike="variant"]')!
+  const launchButton = panel.querySelector<HTMLButtonElement>('[data-strike-launch]')!
 
   const layerInputs = new Map<LayerId, HTMLInputElement>()
   panel.querySelectorAll<HTMLInputElement>('[data-layer]').forEach((input) => {
@@ -99,6 +151,23 @@ export function createControlPanel(
     const value = Number(rangeInput.value)
     rangeOutput.textContent = `${value}\u00d7`
     actions.setSunSpeed(value)
+  })
+
+  function readSite(select: HTMLSelectElement): { lat: number; lng: number } {
+    const option = select.selectedOptions[0]
+    return { lat: Number(option?.dataset.lat ?? 0), lng: Number(option?.dataset.lng ?? 0) }
+  }
+
+  launchButton.addEventListener('click', () => {
+    const from = readSite(fromSelect)
+    const to = readSite(toSelect)
+    actions.launch({
+      fromLat: from.lat,
+      fromLng: from.lng,
+      toLat: to.lat,
+      toLng: to.lng,
+      variant: variantSelect.value === 'mirv' ? 'mirv' : 'icbm',
+    })
   })
 
   setCollapsed(window.innerWidth < 640)

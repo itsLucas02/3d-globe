@@ -6,7 +6,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
-import { CITIES, HUBS, ROUTE_ARCS } from './globeData'
+import { CITIES, HUBS, ROUTE_ARCS, SILOS } from './globeData'
 import { createDayNightMaterial, geoToVector3, subsolarPoint } from './globeMaterial'
 import { GLOBE_RADIUS } from './constants'
 import { createLabelLayer } from './labels'
@@ -14,6 +14,7 @@ import { setupInteraction } from './interaction'
 import { createControlPanel } from './panel'
 import type { LayerId } from './panel'
 import { createMissileSystem } from './missiles'
+import { createSiloLayer } from './silos'
 
 let sunTimeScale = 240
 
@@ -105,6 +106,8 @@ const missiles = createMissileSystem({
   autoLaunch: true,
   autoLaunchInterval: 6.5,
 })
+
+const silos = createSiloLayer({ globe, silos: SILOS })
 
 Promise.all([
   textureLoader.loadAsync(assetUrl('img/earth-blue-marble.webp')),
@@ -238,6 +241,9 @@ function setLayerVisible(layer: LayerId, visible: boolean): void {
     case 'missiles':
       missiles.setVisible(visible)
       break
+    case 'silos':
+      silos.setVisible(visible)
+      break
     case 'graticules':
       globe.showGraticules(visible)
       break
@@ -257,15 +263,19 @@ const panel = createControlPanel(
     setSunSpeed: (scale) => {
       sunTimeScale = scale
     },
+    launch: (strike) => missiles.launch(strike),
   },
   {
     sunSpeed: sunTimeScale,
     autoRotate: controls.autoRotate,
+    origins: SILOS,
+    targets: CITIES,
     layers: {
       routes: true,
       cities: true,
       rings: true,
       missiles: true,
+      silos: true,
       graticules: Boolean(globe.showGraticules()),
       labels: true,
     },
@@ -299,6 +309,7 @@ renderer.setAnimationLoop((time: number) => {
   updateSun(delta)
   interaction.update(delta)
   missiles.update(delta)
+  silos.update(delta)
   controls.update()
   composer.render()
   labels.render()
@@ -321,6 +332,7 @@ if (debugEnabled) {
       interaction,
       panel,
       missiles,
+      silos,
       getGlobeMaterial: () => globeMaterial,
     },
   })

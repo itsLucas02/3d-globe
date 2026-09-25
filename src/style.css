@@ -323,9 +323,63 @@ body {
   background: #eaf6ff;
 }
 
+.panel-select {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.panel-select span {
+  color: rgba(168, 198, 232, 0.72);
+}
+
+.panel-select select {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(126, 186, 255, 0.28);
+  background: rgba(255, 255, 255, 0.05);
+  color: #dbe9fb;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.panel-select select option {
+  background: #0b1424;
+  color: #dbe9fb;
+}
+
+.panel-launch {
+  margin-top: 2px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(127, 227, 255, 0.4);
+  background: linear-gradient(180deg, rgba(127, 227, 255, 0.22), rgba(129, 140, 248, 0.18));
+  color: #eaf6ff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.panel-launch:hover {
+  border-color: rgba(127, 227, 255, 0.7);
+  background: linear-gradient(180deg, rgba(127, 227, 255, 0.32), rgba(129, 140, 248, 0.26));
+}
+
+.panel-launch:active {
+  transform: translateY(1px);
+}
+
 .panel-toggle:focus-visible,
 .panel-row input:focus-visible,
-.panel-range input:focus-visible {
+.panel-range input:focus-visible,
+.panel-select select:focus-visible,
+.panel-launch:focus-visible {
   outline: 2px solid rgba(127, 227, 255, 0.75);
   outline-offset: 2px;
 }

@@ -13,6 +13,22 @@ export interface ArcRoute {
   route: string
 }
 
+export interface Silo {
+  name: string
+  lat: number
+  lng: number
+}
+
+/** Launch sites the strike control can fire from. */
+export const SILOS: Silo[] = [
+  { name: 'Vandenberg', lat: 34.74, lng: -120.57 },
+  { name: 'Plesetsk', lat: 62.93, lng: 40.58 },
+  { name: 'Jiuquan', lat: 40.96, lng: 100.29 },
+  { name: 'Kapustin Yar', lat: 48.57, lng: 45.72 },
+  { name: 'Woomera', lat: -30.95, lng: 136.53 },
+  { name: 'Alcantara', lat: -2.37, lng: -44.4 },
+]
+
 export const CITIES: City[] = [
   { name: 'New York', lat: 40.71, lng: -74.01, hub: true },
   { name: 'London', lat: 51.51, lng: -0.13, hub: true },

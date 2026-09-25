@@ -17,6 +17,9 @@ dist-ssr
 .playwright-mcp/
 /*.png
 
+# Blender auto-backups of source assets
+*.blend1
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
