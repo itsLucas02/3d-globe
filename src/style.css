@@ -375,6 +375,27 @@ body {
   transform: translateY(1px);
 }
 
+.panel-launch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.panel-launch:disabled:hover {
+  border-color: rgba(127, 227, 255, 0.4);
+  background: linear-gradient(180deg, rgba(127, 227, 255, 0.22), rgba(129, 140, 248, 0.18));
+}
+
+.panel-hint {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 178, 132, 0.92);
+}
+
+.panel-hint[hidden] {
+  display: none;
+}
+
 .panel-toggle:focus-visible,
 .panel-row input:focus-visible,
 .panel-range input:focus-visible,

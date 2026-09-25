@@ -15,6 +15,7 @@ import { createControlPanel } from './panel'
 import type { LayerId } from './panel'
 import { createMissileSystem } from './missiles'
 import { createSiloLayer } from './silos'
+import { createExplosionSystem } from './explosions'
 
 let sunTimeScale = 240
 
@@ -99,12 +100,18 @@ const maxAnisotropy = renderer.capabilities.getMaxAnisotropy()
 const textureLoader = new THREE.TextureLoader()
 const assetUrl = (path: string): string => `${import.meta.env.BASE_URL}${path}`
 
+const explosions = createExplosionSystem({
+  globe,
+  quality: lowPower ? 'low' : 'high',
+})
+
 const missiles = createMissileSystem({
   scene,
   globe,
   assetUrl,
   autoLaunch: true,
-  autoLaunchInterval: 6.5,
+  autoLaunchInterval: 9,
+  onImpact: (position, _normal, scale) => explosions.spawn(position, { scale }),
 })
 
 const silos = createSiloLayer({ globe, silos: SILOS })
@@ -240,6 +247,7 @@ function setLayerVisible(layer: LayerId, visible: boolean): void {
       break
     case 'missiles':
       missiles.setVisible(visible)
+      explosions.setVisible(visible)
       break
     case 'silos':
       silos.setVisible(visible)
@@ -309,6 +317,7 @@ renderer.setAnimationLoop((time: number) => {
   updateSun(delta)
   interaction.update(delta)
   missiles.update(delta)
+  explosions.update(delta)
   silos.update(delta)
   controls.update()
   composer.render()
@@ -332,6 +341,7 @@ if (debugEnabled) {
       interaction,
       panel,
       missiles,
+      explosions,
       silos,
       getGlobeMaterial: () => globeMaterial,
     },

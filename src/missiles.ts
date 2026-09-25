@@ -54,6 +54,12 @@ export interface MissileSystemOptions {
   trailColor?: number
   rvTrailColor?: number
   impactColor?: number
+  /**
+   * Called at each impact with the world position and outward surface normal.
+   * When provided it replaces the built-in ring flash, so a richer effect
+   * (see explosions.ts) can own the detonation.
+   */
+  onImpact?: (position: THREE.Vector3, normal: THREE.Vector3, scale?: number) => void
 }
 
 export interface MissileSystem {
@@ -84,6 +90,8 @@ interface Unit {
   targetLat: number
   targetLng: number
   isMirv: boolean
+  /** Relative size of the detonation effect (RVs are a little smaller). */
+  blastScale: number
 }
 
 interface Impact {
@@ -119,6 +127,7 @@ export function createMissileSystem(options: MissileSystemOptions): MissileSyste
   const trailColor = options.trailColor ?? 0x7fe3ff
   const rvTrailColor = options.rvTrailColor ?? 0xffb37f
   const impactColor = options.impactColor ?? 0xaee8ff
+  const onImpact = options.onImpact
 
   const active: Unit[] = []
   const impacts: Impact[] = []
@@ -235,6 +244,7 @@ export function createMissileSystem(options: MissileSystemOptions): MissileSyste
       targetLat: launch.toLat,
       targetLng: launch.toLng,
       isMirv,
+      blastScale: 1,
     })
   }
 
@@ -264,8 +274,14 @@ export function createMissileSystem(options: MissileSystemOptions): MissileSyste
     return out
   }
 
-  function detonate(at: THREE.Vector3): void {
+  function detonate(at: THREE.Vector3, blastScale: number): void {
     const normal = scratch.normal.copy(at).normalize()
+
+    if (onImpact) {
+      onImpact(at, normal, blastScale)
+      return
+    }
+
     const material = new THREE.MeshBasicMaterial({
       color: impactColor,
       transparent: true,
@@ -333,6 +349,7 @@ export function createMissileSystem(options: MissileSystemOptions): MissileSyste
         targetLat: unit.targetLat,
         targetLng: unit.targetLng,
         isMirv: false,
+        blastScale: 0.75,
       })
     }
   }
@@ -413,7 +430,7 @@ export function createMissileSystem(options: MissileSystemOptions): MissileSyste
 
       if (t >= 1) {
         const impactPoint = scratch.position.clone()
-        if (visible && !unit.silent) detonate(impactPoint)
+        if (visible && !unit.silent) detonate(impactPoint, unit.blastScale)
         retire(unit)
         active.splice(i, 1)
       }

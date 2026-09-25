@@ -14,6 +14,7 @@ export interface SiteOption {
   name: string
   lat: number
   lng: number
+  country?: string
 }
 
 export interface PanelActions {
@@ -41,17 +42,17 @@ const LAYERS: Array<{ id: LayerId; label: string }> = [
   { id: 'cities', label: 'City markers' },
   { id: 'rings', label: 'Ping rings' },
   { id: 'missiles', label: 'Ballistic missiles' },
-  { id: 'silos', label: 'Missile silos' },
+  { id: 'silos', label: 'Launch sites' },
   { id: 'graticules', label: 'Graticules' },
   { id: 'labels', label: 'City labels' },
 ]
 
 function optionsFor(sites: SiteOption[]): string {
   return sites
-    .map(
-      (site) =>
-        `<option value="${site.name}" data-lat="${site.lat}" data-lng="${site.lng}">${site.name}</option>`,
-    )
+    .map((site) => {
+      const label = site.country ? `${site.name}, ${site.country}` : site.name
+      return `<option value="${site.name}" data-lat="${site.lat}" data-lng="${site.lng}">${label}</option>`
+    })
     .join('')
 }
 
@@ -79,7 +80,7 @@ export function createControlPanel(
       <fieldset class="panel-group">
         <legend>Strike</legend>
         <label class="panel-select">
-          <span>From</span>
+          <span>Launch site</span>
           <select data-strike="from">${optionsFor(options.origins)}</select>
         </label>
         <label class="panel-select">
@@ -94,6 +95,7 @@ export function createControlPanel(
           </select>
         </label>
         <button class="panel-launch" type="button" data-strike-launch>Launch</button>
+        <p class="panel-hint" data-strike-hint hidden>Pick a target different from the launch site</p>
       </fieldset>
       <fieldset class="panel-group">
         <legend>Layers</legend>
@@ -126,6 +128,7 @@ export function createControlPanel(
   const toSelect = panel.querySelector<HTMLSelectElement>('[data-strike="to"]')!
   const variantSelect = panel.querySelector<HTMLSelectElement>('[data-strike="variant"]')!
   const launchButton = panel.querySelector<HTMLButtonElement>('[data-strike-launch]')!
+  const hint = panel.querySelector<HTMLParagraphElement>('[data-strike-hint]')!
 
   const layerInputs = new Map<LayerId, HTMLInputElement>()
   panel.querySelectorAll<HTMLInputElement>('[data-layer]').forEach((input) => {
@@ -158,7 +161,24 @@ export function createControlPanel(
     return { lat: Number(option?.dataset.lat ?? 0), lng: Number(option?.dataset.lng ?? 0) }
   }
 
+  /** A strike needs a target that is not the launch site itself. */
+  function samePlace(): boolean {
+    const from = readSite(fromSelect)
+    const to = readSite(toSelect)
+    return Math.abs(from.lat - to.lat) < 0.05 && Math.abs(from.lng - to.lng) < 0.05
+  }
+
+  function syncLaunchState(): void {
+    const blocked = samePlace()
+    launchButton.disabled = blocked
+    hint.hidden = !blocked
+  }
+
+  fromSelect.addEventListener('change', syncLaunchState)
+  toSelect.addEventListener('change', syncLaunchState)
+
   launchButton.addEventListener('click', () => {
+    if (samePlace()) return
     const from = readSite(fromSelect)
     const to = readSite(toSelect)
     actions.launch({
@@ -169,6 +189,12 @@ export function createControlPanel(
       variant: variantSelect.value === 'mirv' ? 'mirv' : 'icbm',
     })
   })
+
+  // Start on a distinct pair so the first click always works.
+  if (samePlace() && toSelect.options.length > 1) {
+    toSelect.selectedIndex = 1
+  }
+  syncLaunchState()
 
   setCollapsed(window.innerWidth < 640)
 
