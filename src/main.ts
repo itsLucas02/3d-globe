@@ -13,6 +13,7 @@ import { createLabelLayer } from './labels'
 import { setupInteraction } from './interaction'
 import { createControlPanel } from './panel'
 import type { LayerId } from './panel'
+import { createMissileSystem } from './missiles'
 
 let sunTimeScale = 240
 
@@ -96,6 +97,14 @@ let simulatedTime = Date.now()
 const maxAnisotropy = renderer.capabilities.getMaxAnisotropy()
 const textureLoader = new THREE.TextureLoader()
 const assetUrl = (path: string): string => `${import.meta.env.BASE_URL}${path}`
+
+const missiles = createMissileSystem({
+  scene,
+  globe,
+  assetUrl,
+  autoLaunch: true,
+  autoLaunchInterval: 6.5,
+})
 
 Promise.all([
   textureLoader.loadAsync(assetUrl('img/earth-blue-marble.webp')),
@@ -226,6 +235,9 @@ function setLayerVisible(layer: LayerId, visible: boolean): void {
     case 'rings':
       globe.ringsData(visible ? HUBS : [])
       break
+    case 'missiles':
+      missiles.setVisible(visible)
+      break
     case 'graticules':
       globe.showGraticules(visible)
       break
@@ -253,6 +265,7 @@ const panel = createControlPanel(
       routes: true,
       cities: true,
       rings: true,
+      missiles: true,
       graticules: Boolean(globe.showGraticules()),
       labels: true,
     },
@@ -285,6 +298,7 @@ renderer.setAnimationLoop((time: number) => {
   lastFrameTime = time
   updateSun(delta)
   interaction.update(delta)
+  missiles.update(delta)
   controls.update()
   composer.render()
   labels.render()
@@ -306,6 +320,7 @@ if (debugEnabled) {
       labels,
       interaction,
       panel,
+      missiles,
       getGlobeMaterial: () => globeMaterial,
     },
   })

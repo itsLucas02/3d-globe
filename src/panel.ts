@@ -1,4 +1,4 @@
-export type LayerId = 'routes' | 'cities' | 'rings' | 'graticules' | 'labels'
+export type LayerId = 'routes' | 'cities' | 'rings' | 'missiles' | 'graticules' | 'labels'
 
 export interface PanelActions {
   setLayer: (layer: LayerId, visible: boolean) => void
@@ -21,6 +21,7 @@ const LAYERS: Array<{ id: LayerId; label: string }> = [
   { id: 'routes', label: 'Flight routes' },
   { id: 'cities', label: 'City markers' },
   { id: 'rings', label: 'Ping rings' },
+  { id: 'missiles', label: 'Ballistic missiles' },
   { id: 'graticules', label: 'Graticules' },
   { id: 'labels', label: 'City labels' },
 ]
