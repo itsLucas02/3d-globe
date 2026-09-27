@@ -75,6 +75,7 @@ const VERTEX_SHADER = /* glsl */ `
 
   uniform float uTime;
   uniform float uForm;
+  uniform float uTurb;
 
   varying vec2 vUv;
   varying float vOpacity;
@@ -89,8 +90,17 @@ const VERTEX_SHADER = /* glsl */ `
     // puff then lives its own (much longer) life and dissipates in place.
     float form = clamp(age / uForm, 0.0, 1.0);
     float rise = 1.0 - pow(1.0 - form, 2.2);
-
     vec3 center = mix(iPosStart, iPosEnd, rise);
+
+    // Boiling: a slow, per-puff turbulence so the volume churns instead of
+    // freezing into a static shape once it has formed.
+    float seed = iPosStart.x * 0.31 + iPosStart.z * 0.17 + iPosStart.y * 0.07;
+    center += vec3(
+      sin(age * 1.15 + seed),
+      sin(age * 0.85 + seed * 1.7) * 0.7,
+      cos(age * 1.3 + seed * 0.9)
+    ) * uTurb;
+
     float size = mix(iScale.x, iScale.y, rise);
 
     float ang = iRot.x + iRot.y * age;
@@ -118,6 +128,8 @@ const VERTEX_SHADER = /* glsl */ `
 const FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D uNoise;
   uniform vec3 uLightDirView;
+  uniform vec3 uUpView;
+  uniform vec3 uGroundColor;
 
   varying vec2 vUv;
   varying float vOpacity;
@@ -131,9 +143,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     if (alpha < 0.004) discard;
 
     vec2 q = vUv * 2.0 - 1.0;
-    float r2 = dot(q, q);
-    if (r2 > 1.0) discard;
-    float z = sqrt(max(1.0 - r2, 0.0));
+    float z = sqrt(max(1.0 - min(dot(q, q), 1.0), 0.0));
 
     // Treat the billboard as a squashed sphere so the puff gets a lit side.
     vec3 nrm = normalize(vec3(q.x, q.y, z + 0.35));
@@ -145,6 +155,12 @@ const FRAGMENT_SHADER = /* glsl */ `
 
     vec3 col = mix(vShade, vLit, shade);
     col += vLit * rim;
+
+    // Earthshine: warm bounce from the lit Earth on downward-facing surfaces,
+    // so the plume is anchored rather than floating in a vacuum.
+    float down = clamp(dot(nrm, -uUpView) * 0.5 + 0.5, 0.0, 1.0);
+    col += uGroundColor * down * down * 0.22;
+
     col += vGlow * (0.35 + 0.65 * z);
 
     gl_FragColor = vec4(col, alpha);
@@ -203,13 +219,20 @@ function makePuffTexture(): THREE.DataTexture {
       const cy = v - 0.5
       const r = Math.sqrt(cx * cx + cy * cy) * 2
 
-      const radial = 1 - smoothstep(0.05, 0.92, r)
-      const detail = fbm(u * 3.6 + 11.7, v * 3.6 + 4.3, 6)
-      const large = fbm(u * 1.3 + 61.2, v * 1.3 + 23.9, 3)
+      // Domain warp: offset the sample position by a low-frequency noise field,
+      // which turns round blobs into the cauliflowery lobes of real smoke.
+      const warpX = fbm(u * 2.2 + 13.1, v * 2.2 + 7.7, 2) - 0.5
+      const warpY = fbm(u * 2.2 + 41.3, v * 2.2 + 29.5, 2) - 0.5
+      const wx = u * 3.4 + warpX * 0.6 + 11.7
+      const wy = v * 3.4 + warpY * 0.6 + 4.3
 
-      let a = radial * (0.05 + 1.15 * detail) * (0.5 + 0.9 * large)
-      a = smoothstep(0.04, 0.78, a)
-      a *= radial
+      const detail = fbm(wx, wy, 4)
+      const ridged = 1 - Math.abs(fbm(wx + 71.2, wy + 53.9, 3) * 2 - 1)
+      const n = detail * 0.62 + ridged * 0.5
+
+      const radial = 1 - smoothstep(0.2, 1.0, r)
+      let a = radial * (0.3 + 1.0 * n)
+      a = smoothstep(0.2, 0.7, a) * (0.4 + 0.6 * radial)
 
       const offset = (y * size + x) * 4
       data[offset] = 255
@@ -260,6 +283,8 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
   const scratchLocal = new THREE.Vector3()
   const scratchNormal = new THREE.Vector3()
   const scratchQuat = new THREE.Quaternion()
+  const scratchUp = new THREE.Vector3()
+  const scratchUpQuat = new THREE.Quaternion()
 
   function makeCloudGeometry(puffs: PuffDef[]): THREE.InstancedBufferGeometry {
     const geometry = new THREE.InstancedBufferGeometry()
@@ -339,24 +364,30 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
     const puffs: PuffDef[] = []
     const rand = (min: number, max: number): number => min + Math.random() * (max - min)
 
-    const height = 78 * scale
-    const capRadius = 30 * scale
-    const stemRadius = 5.5 * scale
-    const dustRadius = 30 * scale
+    const height = 70 * scale
+    const capRadius = 38 * scale
+    const stemRadius = 5 * scale
+    const dustRadius = 34 * scale
     const windAngle = Math.random() * TAU
-    const windMag = 0.35 + Math.random() * 0.25
-    const windX = Math.cos(windAngle) * windMag
-    const windZ = Math.sin(windAngle) * windMag
+    const windMag = 0.22 + Math.random() * 0.16
+    const windX = Math.cos(windAngle)
+    const windZ = Math.sin(windAngle)
+    // Progressive bend: the plume curves with height instead of tilting rigidly.
+    const bend = (frac: number): number =>
+      Math.pow(THREE.MathUtils.clamp(frac, 0, 1), 1.45) * height * windMag
 
     const smokeLit = lin(0.55, 0.53, 0.5)
     const smokeLitHot = lin(0.95, 0.89, 0.82)
     const smokeShade = lin(0.03, 0.035, 0.045)
     const smokeShadeHot = lin(0.28, 0.27, 0.27)
+    const collarLit = lin(0.86, 0.83, 0.79)
+    const collarLitHot = lin(1.15, 1.06, 0.95)
     const noGlow = lin(0, 0, 0)
     const dustLit = lin(0.56, 0.45, 0.31)
     const dustLitHot = lin(0.7, 0.55, 0.37)
     const dustShade = lin(0.1, 0.08, 0.06)
     const dustShadeHot = lin(0.24, 0.19, 0.13)
+    const groundWarm = lin(0.5, 0.32, 0.19)
 
     const fireLit = lin(1.3, 0.44, 0.11)
     const fireLitHot = lin(3.6, 2.9, 2.0)
@@ -365,13 +396,12 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
     const fireGlow = lin(1.7, 0.72, 0.24)
 
     const emit = (puff: PuffDef): void => {
-      // Per-puff brightness variation, plus a baked vertical gradient: the top
-      // of the column is sunlit while the stalk sits in its own shadow.
-      const variation = 0.78 + Math.random() * 0.4
+      // Per-puff brightness variation; a baked vertical gradient (bright top,
+      // shadowed stalk); and a warm earthshine tint toward the ground.
+      const variation = 0.8 + Math.random() * 0.36
       const hNorm = THREE.MathUtils.clamp(puff.end.y / height, 0, 1)
-      const vertical = THREE.MathUtils.lerp(0.38, 1.06, hNorm)
-      const k = variation * vertical
-      puff.lit = puff.lit.clone().multiplyScalar(k)
+      const vertical = THREE.MathUtils.lerp(0.4, 1.06, hNorm)
+      puff.lit = puff.lit.clone().multiplyScalar(variation * vertical).lerp(groundWarm, 0.3 * (1 - hNorm))
       puff.litHot = puff.litHot.clone().multiplyScalar(variation)
       puff.shade = puff.shade.clone().multiplyScalar(THREE.MathUtils.lerp(0.35, 1, hNorm))
       puff.shadeHot = puff.shadeHot.clone().multiplyScalar(variation)
@@ -379,17 +409,19 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
     }
 
     // Ground shockwave + fast dust rings (drawn separately, below).
-    // Fireball: incandescent, rises and boils, then cools through deep orange.
+    // --- Authored plume volume ------------------------------------------------
+    // Fireball: incandescent, rises into the cap, then cools through deep orange.
     const fireCount = Math.round(36 * density)
     for (let i = 0; i < fireCount; i += 1) {
       const angle = Math.random() * TAU
-      const spread = Math.random() * 3.2 * scale
+      const radius = capRadius * (0.05 + 0.5 * Math.random())
+      const y = height * rand(0.72, 0.97)
       emit({
-        start: new THREE.Vector3(Math.cos(angle) * spread, rand(2, 7) * scale, Math.sin(angle) * spread),
+        start: new THREE.Vector3(Math.cos(angle) * 3.2 * scale, rand(2, 7) * scale, Math.sin(angle) * 3.2 * scale),
         end: new THREE.Vector3(
-          Math.cos(angle) * capRadius * rand(0.1, 0.45) + windX * height * 0.6,
-          height * rand(0.72, 0.98),
-          Math.sin(angle) * capRadius * rand(0.1, 0.45) + windZ * height * 0.6,
+          Math.cos(angle) * radius + windX * bend(y / height),
+          y,
+          Math.sin(angle) * radius + windZ * bend(y / height),
         ),
         scaleStart: rand(10, 15) * scale,
         scaleEnd: rand(15, 22) * scale,
@@ -405,25 +437,31 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
       })
     }
 
-    // Rolling cap: a wind-sheared torus of smoke that flattens and spreads.
-    const capCount = Math.round(72 * density)
+    // Cap: a wide, flat dome. Radius is biased outward to fill the disc, and
+    // the centre sits slightly higher than the edge.
+    const capCount = Math.round(112 * density)
     for (let i = 0; i < capCount; i += 1) {
-      const angle = Math.random() * TAU
-      const radius = capRadius * rand(0.35, 1.0)
-      const lift = Math.random() < 0.75 ? rand(0.92, 1.02) : rand(0.84, 0.92)
+      const angle = ((i + Math.random()) / capCount) * TAU
+      const rim = Math.sqrt(Math.random())
+      const radius = capRadius * (0.32 + 0.72 * rim)
+      const y = height * (0.96 - 0.1 * Math.pow(rim, 1.5))
       emit({
         start: new THREE.Vector3(
           Math.cos(angle) * stemRadius * 0.4,
-          height * rand(0.5, 0.68),
+          height * rand(0.5, 0.66),
           Math.sin(angle) * stemRadius * 0.4,
         ),
-        end: new THREE.Vector3(Math.cos(angle) * radius + windX * height, height * lift, Math.sin(angle) * radius + windZ * height),
+        end: new THREE.Vector3(
+          Math.cos(angle) * radius + windX * bend(y / height),
+          y,
+          Math.sin(angle) * radius + windZ * bend(y / height),
+        ),
         scaleStart: rand(10, 14) * scale,
-        scaleEnd: rand(16, 24) * scale,
-        delay: rand(0.18, 0.5),
-        life: rand(3.5, 6),
-        opacity: 0.46,
-        spin: rand(-0.28, 0.28),
+        scaleEnd: rand(15, 22) * (0.85 + 0.3 * rim) * scale,
+        delay: 0.16 + 0.34 * rim,
+        life: rand(3.6, 6),
+        opacity: 0.44,
+        spin: rand(-0.3, 0.3),
         lit: smokeLit,
         litHot: smokeLitHot,
         shade: smokeShade,
@@ -432,22 +470,87 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
       })
     }
 
-    // Stem: drawn up from ground zero so the silhouette reads as a mushroom.
-    const stemCount = Math.round(60 * density)
+    // Rolling rim: puffs curling under the cap edge — the detail that reads as
+    // the classic toroidal roll rather than a flat shelf.
+    const rollCount = Math.round(40 * density)
+    for (let i = 0; i < rollCount; i += 1) {
+      const angle = ((i + Math.random()) / rollCount) * TAU
+      const radius = capRadius * rand(0.78, 1.06)
+      const y = height * rand(0.74, 0.87)
+      emit({
+        start: new THREE.Vector3(
+          Math.cos(angle) * stemRadius * 0.4,
+          height * rand(0.46, 0.6),
+          Math.sin(angle) * stemRadius * 0.4,
+        ),
+        end: new THREE.Vector3(
+          Math.cos(angle) * radius + windX * bend(y / height),
+          y,
+          Math.sin(angle) * radius + windZ * bend(y / height),
+        ),
+        scaleStart: rand(9, 12) * scale,
+        scaleEnd: rand(14, 19) * scale,
+        delay: rand(0.24, 0.5),
+        life: rand(3, 5.5),
+        opacity: 0.5,
+        spin: rand(-0.45, 0.45),
+        lit: smokeLit,
+        litHot: smokeLitHot,
+        shade: smokeShade,
+        shadeHot: smokeShadeHot,
+        glow: noGlow,
+      })
+    }
+
+    // Condensation collar: the bright ring where the stalk meets the cap.
+    const collarCount = Math.round(28 * density)
+    for (let i = 0; i < collarCount; i += 1) {
+      const angle = ((i + Math.random()) / collarCount) * TAU
+      const radius = stemRadius * rand(2.2, 3.8)
+      const y = height * rand(0.5, 0.61)
+      emit({
+        start: new THREE.Vector3(
+          Math.cos(angle) * stemRadius * 0.5,
+          height * rand(0.42, 0.56),
+          Math.sin(angle) * stemRadius * 0.5,
+        ),
+        end: new THREE.Vector3(
+          Math.cos(angle) * radius + windX * bend(y / height),
+          y,
+          Math.sin(angle) * radius + windZ * bend(y / height),
+        ),
+        scaleStart: rand(6, 9) * scale,
+        scaleEnd: rand(10, 14) * scale,
+        delay: rand(0.12, 0.3),
+        life: rand(2.8, 4.5),
+        opacity: 0.52,
+        spin: rand(-0.3, 0.3),
+        lit: collarLit,
+        litHot: collarLitHot,
+        shade: smokeShade,
+        shadeHot: smokeShadeHot,
+        glow: noGlow,
+      })
+    }
+
+    // Stalk: a continuous tapered column from ground zero to the cap underside,
+    // so the silhouette reads as a mushroom.
+    const stemCount = Math.round(90 * density)
     for (let i = 0; i < stemCount; i += 1) {
+      const t = (i + Math.random()) / stemCount
+      const y = height * (0.02 + 0.5 * t)
+      const radius = stemRadius * (1.2 - 0.65 * t) * rand(0.35, 1)
       const angle = Math.random() * TAU
-      const radius = stemRadius * rand(0.06, 0.3)
-      const tower = Math.random()
       emit({
         start: new THREE.Vector3(Math.cos(angle) * 1.6 * scale, rand(0.5, 3) * scale, Math.sin(angle) * 1.6 * scale),
         end: new THREE.Vector3(
-          Math.cos(angle) * radius + windX * height * 0.55,
-          height * (0.42 + tower * 0.46),
-          Math.sin(angle) * radius + windZ * height * 0.55,
+          Math.cos(angle) * radius + windX * bend(y / height),
+          y,
+          Math.sin(angle) * radius + windZ * bend(y / height),
         ),
-        scaleStart: rand(7, 10) * scale,
-        scaleEnd: rand(9, 14) * scale,
-        delay: rand(0.04, 0.3),
+        scaleStart: rand(6, 9) * scale,
+        scaleEnd: rand(9, 13) * scale,
+        delay: 0.05 + 0.3 * t,
         life: rand(3, 5.5),
         opacity: 0.44,
         spin: rand(-0.35, 0.35),
@@ -459,17 +562,18 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
       })
     }
 
-    // Rolling dust skirt kicked out along the ground.
-    const dustCount = Math.round(30 * density)
-    for (let i = 0; i < dustCount; i += 1) {
-      const angle = Math.random() * TAU
-      const radius = dustRadius * rand(0.45, 0.95)
+    // Base surge: a low skirt rolling outward along the ground.
+    const surgeCount = Math.round(34 * density)
+    for (let i = 0; i < surgeCount; i += 1) {
+      const angle = ((i + Math.random()) / surgeCount) * TAU
+      const radius = dustRadius * rand(0.45, 1.05)
+      const y = height * rand(0.005, 0.05)
       emit({
-        start: new THREE.Vector3(Math.cos(angle) * 2.5 * scale, 1.5 * scale, Math.sin(angle) * 2.5 * scale),
-        end: new THREE.Vector3(Math.cos(angle) * radius, rand(0.5, 2.5) * scale, Math.sin(angle) * radius),
+        start: new THREE.Vector3(Math.cos(angle) * 2.5 * scale, 1.4 * scale, Math.sin(angle) * 2.5 * scale),
+        end: new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius),
         scaleStart: rand(9, 13) * scale,
         scaleEnd: rand(13, 18) * scale,
-        delay: rand(0, 0.16),
+        delay: rand(0, 0.14),
         life: rand(1.6, 2.8),
         opacity: 0.3,
         spin: rand(-0.4, 0.4),
@@ -507,8 +611,11 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
       uniforms: {
         uTime: { value: 0 },
         uForm: { value: 2.6 },
+        uTurb: { value: 1.9 * scale },
         uNoise: { value: noiseTexture },
         uLightDirView: lightUniform,
+        uUpView: { value: new THREE.Vector3(0, 1, 0) },
+        uGroundColor: { value: lin(0.45, 0.3, 0.18) },
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
@@ -613,7 +720,7 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
       lightUniform.value.copy(sunWorld).transformDirection(camera.matrixWorldInverse).normalize()
     }
 
-    const cameraQuaternion = camera?.quaternion
+    const cameraQuaternion = camera ? camera.quaternion : null
 
     for (let i = clouds.length - 1; i >= 0; i -= 1) {
       const cloud = clouds[i]
@@ -627,7 +734,13 @@ export function createExplosionSystem(options: ExplosionSystemOptions): Explosio
 
       cloud.material.uniforms.uTime.value = cloud.elapsed
 
-      if (cameraQuaternion) cloud.flash.quaternion.copy(cameraQuaternion)
+      if (camera && cameraQuaternion) {
+        // Track the plume's local up so the earthshine term stays oriented to
+        // the surface as the globe and camera move.
+        scratchUp.set(0, 1, 0).applyQuaternion(cloud.group.getWorldQuaternion(scratchUpQuat))
+        cloud.material.uniforms.uUpView.value.copy(scratchUp).transformDirection(camera.matrixWorldInverse)
+        cloud.flash.quaternion.copy(cameraQuaternion)
+      }
       const flashLife = THREE.MathUtils.clamp(cloud.elapsed / 0.26, 0, 1)
       const flashEase = 1 - Math.pow(1 - flashLife, 3)
       cloud.flash.scale.setScalar(cloud.baseScale * (10 + 95 * flashEase))
