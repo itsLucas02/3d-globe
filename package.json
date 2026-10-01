@@ -2,6 +2,8 @@
   "name": "3d-globe",
   "private": true,
   "version": "0.0.0",
+  "description": "Interactive Three.js Earth with day/night lighting, city labels, animated routes, and layer controls.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
